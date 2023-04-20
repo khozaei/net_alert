@@ -1,0 +1,6 @@
+[requires]
+libuv/1.44.2
+
+[generators]
+CMakeDeps
+CMakeToolchain
