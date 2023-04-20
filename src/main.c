@@ -2,7 +2,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-void write_status(uv_write_t *, int status){
+#ifndef UNUSED
+#define UNUSED(x) (void)x
+#endif
+
+void write_status(uv_write_t *req, int status){
+	UNUSED(req);
 	if (status == 0)
 		printf("replied successfully!\n");
 }
@@ -19,7 +24,8 @@ void buffer_reader(uv_stream_t *stream, ssize_t nbytes, const uv_buf_t *buf) {
 	uv_write(&req, stream, &reply, 1, write_status);
 }
 
-void buffer_allocator(uv_handle_t *, size_t sug_size, uv_buf_t *buf) {
+void buffer_allocator(uv_handle_t *handle, size_t sug_size, uv_buf_t *buf) {
+	UNUSED(handle);
 	buf->base = malloc(sug_size);
 	buf->len = sug_size;
 }
