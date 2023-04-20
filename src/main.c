@@ -71,11 +71,28 @@ address_is_valid(GString *ip) {
 	return g_hostname_is_ip_address(ip->str);
 }
 
+void
+server_mode(){
+	int res;
+	uv_tcp_init(uv_default_loop(), &server);
+	uv_ip4_addr("0.0.0.0", 2986, &bind_addr);
+	uv_tcp_bind(&server, (const struct sockaddr *)&bind_addr, 0);
+	res = uv_listen((uv_stream_t *)&server, 128, on_new_connection);
+	if (res)
+		return;
+	uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+	uv_loop_close(uv_default_loop());
+}
+
+void
+client_mode(){
+	
+}
+
 int
 main(int argc, char **argv) {
 	uv_tcp_t server;
 	struct sockaddr_in bind_addr;
-	int res;
 	GError *error;
 	GOptionContext *context;
 
@@ -101,15 +118,9 @@ main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 
-	if (config.server_mode){
-		uv_tcp_init(uv_default_loop(), &server);
-		uv_ip4_addr("0.0.0.0", 2986, &bind_addr);
-		uv_tcp_bind(&server, (const struct sockaddr *)&bind_addr, 0);
-		res = uv_listen((uv_stream_t *)&server, 128, on_new_connection);
-		if (res)
-			return res;
-		uv_run(uv_default_loop(), UV_RUN_DEFAULT);
-		uv_loop_close(uv_default_loop());
-	}
+	if (config.server_mode)
+		server_mode();
+	else
+		client_mode();
 	return 0;
 }
