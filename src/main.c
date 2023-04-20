@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <glib.h>
+#include <glib/gi18n.h>
 
 #ifndef UNUSED
 #define UNUSED(x) (void)x
@@ -65,6 +66,11 @@ on_new_connection(uv_stream_t *server, int status) {
 		uv_read_stop((uv_stream_t *)client);
 }
 
+gboolean
+address_is_valid(GString *ip) {
+	return g_hostname_is_ip_address(ip->str);
+}
+
 int
 main(int argc, char **argv) {
 	uv_tcp_t server;
@@ -76,12 +82,13 @@ main(int argc, char **argv) {
 	error = NULL;
 	config.gui = FALSE;
 	config.server_mode = FALSE;
+	config.port = 2986;
 	context = g_option_context_new ("net_alert: an application to alert on demand");
 	g_option_context_add_main_entries (context, entries, NULL);
 	g_option_context_add_group (context, NULL);//gtk_get_option_group (TRUE));
 	if (!g_option_context_parse (context, &argc, &argv, &error)){
-		g_print ("option parsing failed: %s\n", error->message);
-		exit (1);
+		g_print("option parsing failed: %s\n", error->message);
+		exit(EXIT_FAILURE);
 	}
 	printf("port: %i\nserver address: %s\nserver mode: %i\nGUI: %i\ncommand: %s\n\n"
 		, config.server_port
@@ -89,14 +96,20 @@ main(int argc, char **argv) {
 		, config.server_mode
 		, config.gui
 		, (char *)config.command.str);
+	if (!address_is_valid(&config.server_ip)){
+		printf("Destination address \"%s\" is not valid\n", (char *)config.server_ip.str);
+		exit(EXIT_FAILURE);
+	}
 
-	uv_tcp_init(uv_default_loop(), &server);
-	uv_ip4_addr("0.0.0.0", 2986, &bind_addr);
-	uv_tcp_bind(&server, (const struct sockaddr *)&bind_addr, 0);
-	res = uv_listen((uv_stream_t *)&server, 128, on_new_connection);
-	if (res)
-		return res;
-	uv_run(uv_default_loop(), UV_RUN_DEFAULT);
-	uv_loop_close(uv_default_loop());
+	if (config.server_mode){
+		uv_tcp_init(uv_default_loop(), &server);
+		uv_ip4_addr("0.0.0.0", 2986, &bind_addr);
+		uv_tcp_bind(&server, (const struct sockaddr *)&bind_addr, 0);
+		res = uv_listen((uv_stream_t *)&server, 128, on_new_connection);
+		if (res)
+			return res;
+		uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+		uv_loop_close(uv_default_loop());
+	}
 	return 0;
 }
