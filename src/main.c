@@ -28,9 +28,15 @@ static GOptionEntry entries[] =
 
 void
 write_status(uv_write_t *req, int status){
-	UNUSED(req);
-	if (status == 0)
-		printf("replied successfully!\n");
+	if (status == 0){
+		if (config.server_mode)
+			printf("replied to client!\n");
+		else {
+			uv_shutdown_t sh;
+			printf("command sent!\n");
+			uv_shutdown(&sh, req->handle, NULL);
+		}
+	}
 }
 
 void
@@ -74,6 +80,10 @@ address_is_valid(GString *ip) {
 void
 server_mode(){
 	int res;
+	uv_tcp_t server;
+	struct sockaddr_in bind_addr;
+
+	printf("server mode\n");
 	uv_tcp_init(uv_default_loop(), &server);
 	uv_ip4_addr("0.0.0.0", 2986, &bind_addr);
 	uv_tcp_bind(&server, (const struct sockaddr *)&bind_addr, 0);
@@ -85,21 +95,54 @@ server_mode(){
 }
 
 void
-client_mode(){
+connect_to_server(uv_connect_t *conn, int status){
+	uv_buf_t msg;
+	uv_write_t req;
+	char *c_command;
 	
+	printf("connected to server\n");
+	if (status < 0){
+		uv_shutdown_t sh;
+		
+		uv_shutdown(&sh, conn->handle, NULL);
+		return;
+	}
+	c_command = (char *)config.command.str;
+	msg.base = c_command;
+	msg.len = strnlen(c_command, 1024);
+	uv_write(&req, conn->handle, &msg, 1, write_status);
+}
+
+void
+client_mode(){
+	uv_tcp_t client;
+	uv_connect_t conn;
+	struct sockaddr_in bind_addr;
+
+	printf("client mode\n");
+	if (!config.server_ip.str || !address_is_valid(&config.server_ip)){
+		printf("Destination address \"%s\" is not valid\n", (char *)config.server_ip.str);
+		exit(EXIT_FAILURE);
+	}
+	if (config.server_port == 0){
+		printf("Invalid port: %i\n", config.server_port);
+	}
+	uv_tcp_init(uv_default_loop(), &client);
+	uv_ip4_addr((char *)config.server_ip.str, config.server_port, &bind_addr);
+	uv_tcp_connect(&conn, &client, (const struct sockaddr *)&bind_addr, connect_to_server);
+	uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+	uv_loop_close(uv_default_loop());
 }
 
 int
 main(int argc, char **argv) {
-	uv_tcp_t server;
-	struct sockaddr_in bind_addr;
 	GError *error;
 	GOptionContext *context;
 
 	error = NULL;
 	config.gui = FALSE;
 	config.server_mode = FALSE;
-	config.port = 2986;
+	config.server_port = 2986;
 	context = g_option_context_new ("net_alert: an application to alert on demand");
 	g_option_context_add_main_entries (context, entries, NULL);
 	g_option_context_add_group (context, NULL);//gtk_get_option_group (TRUE));
@@ -113,10 +156,6 @@ main(int argc, char **argv) {
 		, config.server_mode
 		, config.gui
 		, (char *)config.command.str);
-	if (!address_is_valid(&config.server_ip)){
-		printf("Destination address \"%s\" is not valid\n", (char *)config.server_ip.str);
-		exit(EXIT_FAILURE);
-	}
 
 	if (config.server_mode)
 		server_mode();
