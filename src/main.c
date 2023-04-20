@@ -1,6 +1,25 @@
 #include <uv.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <glib.h>
+
+static struct config_s {
+	gint server_port;
+	GString server_ip;
+	gboolean server_mode;
+	gboolean gui;
+	GString command;
+}config;
+
+static GOptionEntry entries[] =
+{
+  { "port", 'p', 0, G_OPTION_ARG_INT, &config.server_port, "Server_port", NULL },
+  { "destination", 'd', 0, G_OPTION_ARG_STRING, &config.server_ip, "Server ip address", NULL },
+  { "server", 's', 0, G_OPTION_ARG_NONE, &config.server_mode, "Server mode", NULL },
+  { "gui", 'g', 0, G_OPTION_ARG_NONE, &config.gui, "With GUI", NULL },
+  { "command", 'c', 0, G_OPTION_ARG_STRING, &config.command, "Command to send to the server", NULL },
+  { NULL }
+};
 
 #ifndef UNUSED
 #define UNUSED(x) (void)x
@@ -43,10 +62,29 @@ void on_new_connection(uv_stream_t *server, int status) {
 }
 
 int
-main() {
+main(int argc, char **argv) {
 	uv_tcp_t server;
 	struct sockaddr_in bind_addr;
 	int res;
+	GError *error;
+	GOptionContext *context;
+
+	error = NULL;
+	config.gui = FALSE;
+	config.server_mode = FALSE;
+	context = g_option_context_new ("net_alert: an application to alert on demand");
+	g_option_context_add_main_entries (context, entries, NULL);
+	g_option_context_add_group (context, NULL);//gtk_get_option_group (TRUE));
+	if (!g_option_context_parse (context, &argc, &argv, &error)){
+		g_print ("option parsing failed: %s\n", error->message);
+		exit (1);
+	}
+	printf("port: %i\nserver address: %s\nserver mode: %i\nGUI: %i\ncommand: %s\n\n"
+		, config.server_port
+		, (char *)config.server_ip.str
+		, config.server_mode
+		, config.gui
+		, (char *)config.command.str);
 
 	uv_tcp_init(uv_default_loop(), &server);
 	uv_ip4_addr("0.0.0.0", 2986, &bind_addr);
