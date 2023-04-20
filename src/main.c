@@ -3,6 +3,10 @@
 #include <stdlib.h>
 #include <glib.h>
 
+#ifndef UNUSED
+#define UNUSED(x) (void)x
+#endif
+
 static struct config_s {
 	gint server_port;
 	GString server_ip;
@@ -21,17 +25,15 @@ static GOptionEntry entries[] =
   { NULL }
 };
 
-#ifndef UNUSED
-#define UNUSED(x) (void)x
-#endif
-
-void write_status(uv_write_t *req, int status){
+void
+write_status(uv_write_t *req, int status){
 	UNUSED(req);
 	if (status == 0)
 		printf("replied successfully!\n");
 }
 
-void buffer_reader(uv_stream_t *stream, ssize_t nbytes, const uv_buf_t *buf) {
+void
+buffer_reader(uv_stream_t *stream, ssize_t nbytes, const uv_buf_t *buf) {
 	uv_buf_t reply;
 	uv_write_t req;
 
@@ -43,13 +45,15 @@ void buffer_reader(uv_stream_t *stream, ssize_t nbytes, const uv_buf_t *buf) {
 	uv_write(&req, stream, &reply, 1, write_status);
 }
 
-void buffer_allocator(uv_handle_t *handle, size_t sug_size, uv_buf_t *buf) {
+void
+buffer_allocator(uv_handle_t *handle, size_t sug_size, uv_buf_t *buf) {
 	UNUSED(handle);
 	buf->base = malloc(sug_size);
 	buf->len = sug_size;
 }
 
-void on_new_connection(uv_stream_t *server, int status) {
+void
+on_new_connection(uv_stream_t *server, int status) {
 	if (status == -1) {
 		return;
 	}
