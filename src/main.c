@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <glib.h>
 #include <glib/gi18n.h>
+#include <gio/gio.h>
 
 #ifndef UNUSED
 #define UNUSED(x) (void)x
@@ -47,8 +48,18 @@ buffer_reader(uv_stream_t *stream, ssize_t nbytes, const uv_buf_t *buf) {
 	if (nbytes < 0)
 		uv_read_stop(stream);
 	printf("from client: %s\n", buf->base);
-	reply.base = (char *)"reply from tcpserver\n";
-	reply.len = 21;
+	GApplication *application = g_application_new ("net.alert", G_APPLICATION_FLAGS_NONE);
+	g_application_register (application, NULL, NULL);
+	GNotification *notification = g_notification_new ("Net Alert");
+	g_notification_set_body (notification, buf->base);
+	GIcon *icon = g_themed_icon_new ("dialog-information");
+	g_notification_set_icon (notification, icon);
+	g_application_send_notification (application, NULL, notification);
+	g_object_unref (icon);
+	g_object_unref (notification);
+	g_object_unref (application);
+	reply.base = (char *)"ack\n";
+	reply.len = 4;
 	uv_write(&req, stream, &reply, 1, write_status);
 }
 
@@ -109,8 +120,9 @@ connect_to_server(uv_connect_t *conn, int status){
 	}
 	c_command = (char *)config.command.str;
 	msg.base = c_command;
-	msg.len = strnlen(c_command, 1024);
-	uv_write(&req, conn->handle, &msg, 1, write_status);
+	msg.len = strnlen(c_command, 1024) + 1;
+	if (msg.len > 1)
+		uv_write(&req, conn->handle, &msg, 1, write_status);
 }
 
 void
