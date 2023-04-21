@@ -1,6 +1,7 @@
 [requires]
 libuv/1.44.2
 glib/2.73.0
+libsndfile/1.2.0
 
 [generators]
 CMakeDeps
@@ -8,3 +9,4 @@ CMakeToolchain
 
 [options]
 glib*:shared=False
+libsndfile*:shared=False

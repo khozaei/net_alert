@@ -5,6 +5,7 @@
 #include <glib.h>
 #include <glib/gi18n.h>
 #include <gio/gio.h>
+#include "wav.h"
 
 #ifndef UNUSED
 #define UNUSED(x) (void)x
@@ -14,18 +15,19 @@ static struct config_s {
 	gint server_port;
 	GString server_ip;
 	gboolean server_mode;
-	gboolean gui;
+	GString wav;
 	GString command;
 }config;
 
 GString *gbuffer;
+GString *wav;
 
 static GOptionEntry entries[] =
 {
   { "port", 'p', 0, G_OPTION_ARG_INT, &config.server_port, "Server_port", NULL },
   { "destination", 'd', 0, G_OPTION_ARG_STRING, &config.server_ip, "Server ip address", NULL },
   { "server", 's', 0, G_OPTION_ARG_NONE, &config.server_mode, "Server mode", NULL },
-  { "gui", 'g', 0, G_OPTION_ARG_NONE, &config.gui, "With GUI", NULL },
+  { "wav", 'w', 0, G_OPTION_ARG_STRING, &config.wav, "WAV alert file", NULL },
   { "command", 'c', 0, G_OPTION_ARG_STRING, &config.command, "Command to send to the server", NULL },
   { NULL }
 };
@@ -45,10 +47,6 @@ write_status(uv_write_t *req, int status){
 
 void
 buffer_reader(uv_stream_t *stream, ssize_t nbytes, const uv_buf_t *buf) {
-	uv_buf_t reply;
-	uv_write_t req;
-
-
 	if (nbytes <= 0)
 		uv_read_stop(stream);
 	for (int i = 0; i< nbytes; i++){
@@ -60,6 +58,11 @@ buffer_reader(uv_stream_t *stream, ssize_t nbytes, const uv_buf_t *buf) {
 		return;
 
 	printf("from client: %s\n", (char *)gbuffer->str);
+	if (strstr(gbuffer->str, "dismiss") != NULL) {
+		dismiss();
+		g_string_erase(gbuffer, 0 , -1);
+		return;
+	}
 	GApplication *application = g_application_new ("net.alert", G_APPLICATION_FLAGS_NONE);
 	g_application_register (application, NULL, NULL);
 	GNotification *notification = g_notification_new ("Net Alert");
@@ -70,9 +73,7 @@ buffer_reader(uv_stream_t *stream, ssize_t nbytes, const uv_buf_t *buf) {
 	g_object_unref (icon);
 	g_object_unref (notification);
 	g_object_unref (application);
-	reply.base = (char *)"ack\n";
-	reply.len = 4;
-	uv_write(&req, stream, &reply, 1, write_status);
+	do_alert(wav->str);
 	g_string_erase(gbuffer, 0, -1);
 }
 
@@ -167,7 +168,7 @@ main(int argc, char **argv) {
 	GOptionContext *context;
 
 	error = NULL;
-	config.gui = FALSE;
+	wav = g_string_new("alert.wav");
 	config.server_mode = FALSE;
 	config.server_port = 2986;
 	gbuffer = g_string_new(NULL);
@@ -178,11 +179,12 @@ main(int argc, char **argv) {
 		g_print("option parsing failed: %s\n", error->message);
 		exit(EXIT_FAILURE);
 	}
-	printf("port: %i\nserver address: %s\nserver mode: %i\nGUI: %i\ncommand: %s\n\n"
+	g_string_overwrite(wav, 0, config.wav.str);
+	printf("port: %i\nserver address: %s\nserver mode: %i\nWav: %s\ncommand: %s\n\n"
 		, config.server_port
 		, (char *)config.server_ip.str
 		, config.server_mode
-		, config.gui
+		, wav->str
 		, (char *)config.command.str);
 
 	if (config.server_mode)

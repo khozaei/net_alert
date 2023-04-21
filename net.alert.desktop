@@ -1,0 +1,12 @@
+#!/usr/bin/xdg-open
+[Desktop Entry]
+Name=Net Alert
+Comment=Alerts on the network command
+Exec=./build/net_alert -s 
+Icon=net.alert
+Terminal=true
+Type=Application
+Categories=GNOME;GTK;Network;
+StartupNotify=true
+DBusActivatable=true
+X-GNOME-UsesNotifications=true
