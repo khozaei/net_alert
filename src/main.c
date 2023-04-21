@@ -1,6 +1,7 @@
 #include <uv.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <glib.h>
 #include <glib/gi18n.h>
 #include <gio/gio.h>
@@ -16,6 +17,8 @@ static struct config_s {
 	gboolean gui;
 	GString command;
 }config;
+
+GString *gbuffer;
 
 static GOptionEntry entries[] =
 {
@@ -45,13 +48,22 @@ buffer_reader(uv_stream_t *stream, ssize_t nbytes, const uv_buf_t *buf) {
 	uv_buf_t reply;
 	uv_write_t req;
 
-	if (nbytes < 0)
+
+	if (nbytes <= 0)
 		uv_read_stop(stream);
-	printf("from client: %s\n", buf->base);
+	for (int i = 0; i< nbytes; i++){
+		if (g_ascii_isalpha(buf->base[i]) || buf->base[i] == '\n' || buf->base[i] == '\r')
+			g_string_append_c(gbuffer, buf->base[i]);
+	}
+	if (strchr((const char *)gbuffer->str,'\n') == NULL || 
+		strchr((const char *)gbuffer->str,'\r') == NULL)
+		return;
+
+	printf("from client: %s\n", (char *)gbuffer->str);
 	GApplication *application = g_application_new ("net.alert", G_APPLICATION_FLAGS_NONE);
 	g_application_register (application, NULL, NULL);
 	GNotification *notification = g_notification_new ("Net Alert");
-	g_notification_set_body (notification, buf->base);
+	g_notification_set_body (notification, gbuffer->str);
 	GIcon *icon = g_themed_icon_new ("dialog-information");
 	g_notification_set_icon (notification, icon);
 	g_application_send_notification (application, NULL, notification);
@@ -61,6 +73,7 @@ buffer_reader(uv_stream_t *stream, ssize_t nbytes, const uv_buf_t *buf) {
 	reply.base = (char *)"ack\n";
 	reply.len = 4;
 	uv_write(&req, stream, &reply, 1, write_status);
+	g_string_erase(gbuffer, 0, -1);
 }
 
 void
@@ -110,17 +123,19 @@ connect_to_server(uv_connect_t *conn, int status){
 	uv_buf_t msg;
 	uv_write_t req;
 	char *c_command;
+	GString *command;
 	
 	printf("connected to server\n");
+	command = g_string_new(config.command.str);
+	g_string_append(command, "\r\n");
 	if (status < 0){
 		uv_shutdown_t sh;
 		
 		uv_shutdown(&sh, conn->handle, NULL);
 		return;
 	}
-	c_command = (char *)config.command.str;
-	msg.base = c_command;
-	msg.len = strnlen(c_command, 1024) + 1;
+	msg.base = command->str;
+	msg.len = command->len + 1;
 	if (msg.len > 1)
 		uv_write(&req, conn->handle, &msg, 1, write_status);
 }
@@ -155,6 +170,7 @@ main(int argc, char **argv) {
 	config.gui = FALSE;
 	config.server_mode = FALSE;
 	config.server_port = 2986;
+	gbuffer = g_string_new(NULL);
 	context = g_option_context_new ("net_alert: an application to alert on demand");
 	g_option_context_add_main_entries (context, entries, NULL);
 	g_option_context_add_group (context, NULL);//gtk_get_option_group (TRUE));
